@@ -12,6 +12,12 @@ import (
 	"github.com/uber/jaeger-client-go/config"
 )
 
+type data struct {
+	tracer opentracing.Tracer
+	ctx    context.Context
+	//	ctx opentracing.SpanContext
+}
+
 func main() {
 	cfg := config.Configuration{
 		Sampler: &config.SamplerConfig{
@@ -26,7 +32,7 @@ func main() {
 	}
 
 	tracer, closer, err := cfg.New(
-		"first_example",
+		"test_example",
 		config.Logger(jaeger.StdLogger),
 	)
 	if err != nil {
@@ -35,33 +41,40 @@ func main() {
 	}
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracer)
-
-	ctx := context.Background()
-	parent := opentracing.GlobalTracer().StartSpan("hello")
-	defer parent.Finish()
-	childFunction(parent)
-	childFunction(parent)
-	childFunction(parent)
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := tracer.StartSpan("hello", opentracing.ChildOf(span.Context()))
+	ctx := context.TODO()
+	d := &data{
+		tracer: tracer,
+		ctx:    ctx,
+	}
+	span := d.tracer.StartSpan("Init")
+	defer span.Finish()
+	d.ctx = opentracing.ContextWithSpan(ctx, span)
+	d.childFunction()
+	if span := opentracing.SpanFromContext(d.ctx); span != nil {
+		span := d.tracer.StartSpan("hello", opentracing.ChildOf(span.Context()))
 		span.SetTag("first func", "hello")
 		defer span.Finish()
-		ctx = opentracing.ContextWithSpan(ctx, span)
+		d.ctx = opentracing.ContextWithSpan(d.ctx, span)
+	} else {
+		// NG
+		fmt.Println("ng1")
 	}
 	time.Sleep(1 * time.Second)
 }
 
-func childFunction(parent opentracing.Span) {
-	span := opentracing.GlobalTracer().StartSpan(
-		"world", opentracing.ChildOf(parent.Context()))
-	defer span.Finish()
-	span.LogFields(
-		log.String("event", "soft error"),
-		log.String("type", "cache timeout"),
-		log.Int("waited.millis", 1500))
-	span.LogFields(
-		log.String("event2", "hard error"),
-		log.String("type2", "cache timeout"),
-		log.Int("waited.millis", 100))
+func (d *data) childFunction() {
+	if span := opentracing.SpanFromContext(d.ctx); span != nil {
+		span := d.tracer.StartSpan("world", opentracing.ChildOf(span.Context()))
+		span.SetTag("second func", "test")
+		defer span.Finish()
+		d.ctx = opentracing.ContextWithSpan(d.ctx, span)
+		span.LogFields(
+			log.String("event", "soft error"),
+			log.String("type", "cache timeout"),
+			log.Int("waited.millis", 1500))
+	} else {
+		// NG
+		fmt.Println("ng2")
+	}
 	time.Sleep(1 * time.Second)
 }
