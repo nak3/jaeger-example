@@ -15,7 +15,6 @@ import (
 type data struct {
 	tracer opentracing.Tracer
 	ctx    context.Context
-	//	ctx opentracing.SpanContext
 }
 
 func main() {
@@ -49,7 +48,6 @@ func main() {
 	span := d.tracer.StartSpan("Init")
 	defer span.Finish()
 	d.ctx = opentracing.ContextWithSpan(ctx, span)
-	d.childFunction()
 	if span := opentracing.SpanFromContext(d.ctx); span != nil {
 		span := d.tracer.StartSpan("hello", opentracing.ChildOf(span.Context()))
 		span.SetTag("first func", "hello")
@@ -59,6 +57,7 @@ func main() {
 		// NG
 		fmt.Println("ng1")
 	}
+	d.childFunction()
 	time.Sleep(1 * time.Second)
 }
 
